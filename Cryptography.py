@@ -49,3 +49,27 @@ def verify_signature(message, signature, public_key):
     except Exception:
         return False
 
+def encrypt_message(message, public_key):
+    encrypted_message = public_key.encrypt(
+        message,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
+    )
+    return encrypted_message
+
+def decrypt_message(encrypted_message, private_key):
+    try:
+        decrypted_message = private_key.decrypt(
+            encrypted_message,
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None
+            )
+        )
+    except Exception:
+        return "Decryption failed. Message may be tampered."
+    return decrypted_message

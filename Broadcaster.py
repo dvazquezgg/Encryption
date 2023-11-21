@@ -1,6 +1,10 @@
 import socket
 import threading
 from Cryptography import *
+from queue import Queue
+
+MAX_MESSAGES = 20
+
 
 def create_message():
     message = input("Enter your message: ")
@@ -14,19 +18,42 @@ def server(host, port):
 
     print(f"Server listening on {host}:{port}")
 
+    message_queue = Queue(maxsize=MAX_MESSAGES)
+
+    def broadcast_messages():
+        while True:
+            if not message_queue.empty():
+                message = message_queue.get()
+                for client_socket in clients:
+                    try:
+                        client_socket.send(message.encode('utf-8'))
+                    except socket.error:
+                        # Handle a disconnected client
+                        clients.remove(client_socket)
+
+    threading.Thread(target=broadcast_messages, daemon=True).start()
+
     while True:
         client, addr = server_socket.accept()
         print(f"Connection from {addr}")
 
         threading.Thread(target=handle_client, args=(client,)).start()
 
-def handle_client(client_socket):
+def handle_client(client_socket, message_queue):
+    clients.append(client_socket)
     while True:
         data = client_socket.recv(1024).decode('utf-8')
         if not data:
             break
         print(f"Received message: {data}")
 
+        # Add the received message to the queue
+        message_queue.put(data)
+
+        if message_queue.qsize() > MAX_MESSAGES:
+            message_queue.get()  # Remove the oldest message if the queue is full
+    # Client disconnected, remove from the list of clients
+    clients.remove(client_socket)
     client_socket.close()
 
 def client(name, host, port):
@@ -63,8 +90,7 @@ def client(name, host, port):
 
     client_socket.close()
 
-if __name__ == "__main__":
-
+def test_cryptographic_library():
     # Alice generates her key pair
     alice_private_key, alice_public_key = generate_key_pair()
 
@@ -117,6 +143,20 @@ if __name__ == "__main__":
     else:
         print("Signature verification failed. Message may be tampered.")
 
+    secret_message = b"Hello, Bob! This is a secret message from Alice."
+    encrypted_message = encrypt_message(secret_message, bob_public_key)
+
+    error_message = decrypt_message(encrypted_message, alice_private_key)
+    print(error_message)
+    decrypted_message = decrypt_message(encrypted_message, bob_private_key)
+    print(decrypted_message)
+
+
+
+if __name__ == "__main__":
+
+    # Test the cryptographic library
+    test_cryptographic_library()
 
     # Obtain the connection IP address from the computer
     IP_Address = socket.gethostbyname(socket.gethostname())
@@ -124,6 +164,7 @@ if __name__ == "__main__":
 
     host = IP_Address
     port = 12345
+    clients = []  # List to store client sockets
 
     # Do you want to be the server or the client?
     while True:
