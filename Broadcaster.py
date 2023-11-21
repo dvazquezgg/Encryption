@@ -37,7 +37,7 @@ def server(host, port):
         client, addr = server_socket.accept()
         print(f"Connection from {addr}")
 
-        threading.Thread(target=handle_client, args=(client,)).start()
+        threading.Thread(target=handle_client, args=(client,message_queue)).start()
 
 def handle_client(client_socket, message_queue):
     clients.append(client_socket)
@@ -56,10 +56,20 @@ def handle_client(client_socket, message_queue):
     clients.remove(client_socket)
     client_socket.close()
 
-def client(name, host, port):
+def receive_messages(client_socket):
+    while True:
+        try:
+            data = client_socket.recv(1024).decode('utf-8')
+            if not data:
+                break
+            print(f"Received message: {data}")
+        except socket.error:
+            # Handle disconnection or errors
+            print("Server disconnected.")
+            break
 
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect((host, port))
+
+def send_messages(client_socket):
 
     while True:
         message = create_message()
@@ -87,6 +97,23 @@ def client(name, host, port):
             origin = name
         message = f"{origin}: {message}"
         client_socket.send(message.encode('utf-8'))
+
+
+def client(name, host, port):
+
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect((host, port))
+
+    # Start two threads, one for receiving messages and one for sending messages
+    receive_thread = threading.Thread(target=receive_messages, args=(client_socket,))
+    send_thread = threading.Thread(target=send_messages, args=(client_socket,))
+
+    receive_thread.start()
+    send_thread.start()
+
+    # Wait for both threads to finish (e.g., if the server disconnects)
+    receive_thread.join()
+    send_thread.join()
 
     client_socket.close()
 
@@ -162,7 +189,7 @@ if __name__ == "__main__":
     IP_Address = socket.gethostbyname(socket.gethostname())
     print(f"IP Address: {IP_Address}")
 
-    host = IP_Address
+    host = "192.168.45.31"
     port = 12345
     clients = []  # List to store client sockets
 
